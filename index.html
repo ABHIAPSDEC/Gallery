@@ -245,61 +245,18 @@
         transform: rotate(360deg);
       }
     }
-
-    .modal {
-      display: none;
-      position: fixed;
-      z-index: 1001;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-      overflow: auto;
-      background-color: rgb(0, 0, 0);
-      background-color: rgba(0, 0, 0, 0.4);
-    }
-
-    .modal-content {
-      background-color: #fefefe;
-      margin: 15% auto;
-      padding: 20px;
-      border: 1px solid #888;
-      width: 80%;
-      max-width: 400px;
-    }
-
-    .modal-content input {
-      width: 100%;
-      padding: 10px;
-      margin: 10px 0;
-      box-sizing: border-box;
-    }
-
-    .modal-content .close-modal {
-      color: #aaa;
-      float: right;
-      font-size: 28px;
-      font-weight: bold;
-    }
-
-    .modal-content .close-modal:hover,
-    .modal-content .close-modal:focus {
-      color: black;
-      text-decoration: none;
-      cursor: pointer;
-    }
   </style>
 </head>
 
 <body>
+
   <div class="navbar">
     <span class="menu-toggle" onclick="openNav()">&#9776;</span>
-    <div class="nav-links" id="nav-links">
+    <div class="nav-links">
       <a href="#" onclick="filter('all')">All</a>
       <a href="#" onclick="filter('photos')">Photos</a>
       <a href="#" onclick="filter('videos')">Videos</a>
       <a href="#" onclick="upload()">Upload</a>
-      <a href="#" onclick="openFolderModal()">New Folder</a>
     </div>
   </div>
 
@@ -323,150 +280,240 @@
     </div>
   </div>
 
-  <div class="preview" id="preview">
-    <span class="close" id="preview-close">&times;</span>
-    <div class="preview-content" id="preview-content"></div>
+  <div class="preview" id="image-preview">
+    <div class="preview-content">
+      <img id="preview-image" alt="Preview" style="display: none;">
+      <video id="preview-video" controls style="display: none;"></video>
+      <span class="close" id="close-preview">&times;</span>
+    </div>
   </div>
 
   <div class="loader" id="loader">
     <div></div>
   </div>
 
-  <div id="folderModal" class="modal">
-    <div class="modal-content">
-      <span class="close-modal" onclick="closeFolderModal()">&times;</span>
-      <label for="folder-name">Folder Name:</label>
-      <input type="text" id="folder-name" name="folder-name">
-      <button onclick="createFolder()">Create</button>
-    </div>
-  </div>
-
   <script>
-    let images = [];
-    let folders = {};
-    let currentFolder = 'all';
-
-    document.getElementById('file-input').addEventListener('change', handleFiles);
+    let imageCount = 0;
+    let currentFilter = 'all';
 
     function openNav() {
       document.getElementById("mySidenav").style.left = "0";
+      document.querySelector(".navbar").style.zIndex = "-1";
     }
 
     function closeNav() {
       document.getElementById("mySidenav").style.left = "-250px";
+      document.querySelector(".navbar").style.zIndex = "1000";
     }
 
-    function openFolderModal() {
-      document.getElementById("folderModal").style.display = "block";
-    }
+    const uploadButton = document.getElementById('upload-button');
+    const fileInput = document.getElementById('file-input');
+    const leftColumn = document.getElementById('left-column');
+    const rightColumn = document.getElementById('right-column');
+    const imagePreview = document.getElementById('image-preview');
+    const previewImage = document.getElementById('preview-image');
+    const previewVideo = document.getElementById('preview-video');
+    const closePreview = document.getElementById('close-preview');
+    const loader = document.getElementById('loader');
 
-    function closeFolderModal() {
-      document.getElementById("folderModal").style.display = "none";
-    }
+    uploadButton.addEventListener('click', () => {
+      fileInput.click();
+    });
 
-    function createFolder() {
-      const folderName = document.getElementById("folder-name").value;
-      if (folderName && !folders[folderName]) {
-        folders[folderName] = [];
-        const navLinks = document.getElementById("nav-links");
-        const newFolderLink = document.createElement("a");
-        newFolderLink.href = "#";
-        newFolderLink.textContent = folderName;
-        newFolderLink.onclick = () => filter(folderName);
-        navLinks.appendChild(newFolderLink);
-        closeFolderModal();
-      } else {
-        alert('Folder name is either empty or already exists.');
+    fileInput.addEventListener('change', async (event) => {
+      const files = Array.from(event.target.files);
+      showLoader();
+      try {
+        await processFiles(files);
+        filter('all');
+      } catch (error) {
+        console.error('Error during file upload:', error);
+      } finally {
+        hideLoader();
       }
+    });
+
+    async function processFiles(files) {
+      for (const file of files) {
+        try {
+          await uploadFileInChunks(file);
+        } catch (error) {
+          console.error(`Error uploading file ${file.name}:`, error);
+        }
+      }
+    }
+
+    async function uploadFileInChunks(file) {
+      const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB
+      for (let start = 0; start < file.size; start += CHUNK_SIZE) {
+        const chunk = file.slice(start, start + CHUNK_SIZE);
+        await readChunk(chunk, file);
+      }
+    }
+
+    function readChunk(chunk, file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          if (file.size <= chunk.size) {
+            addMediaToGallery(file, e.target.result);
+          }
+          resolve();
+        };
+        reader.onerror = () => {
+          console.error('Error reading chunk:', reader.error);
+          reject(reader.error);
+        };
+        reader.readAsDataURL(chunk);
+      });
+    }
+
+    function addMediaToGallery(file, dataUrl) {
+      const imgBox = document.createElement('div');
+      imgBox.className = 'box';
+
+      let mediaElement;
+
+      if (file.type.startsWith('image/')) {
+        mediaElement = new Image();
+        mediaElement.src = dataUrl;
+        mediaElement.onload = () => {
+          imgBox.appendChild(mediaElement);
+          imgBox.innerHTML += '<div class="dots">•••</div>';
+          appendToColumn(imgBox);
+        };
+        mediaElement.onerror = () => {
+          console.error('Failed to load image.');
+        };
+      } else if (file.type.startsWith('video/')) {
+        mediaElement = document.createElement('video');
+        mediaElement.src = dataUrl;
+        mediaElement.controls = true;
+        mediaElement.style.display = 'block';
+        mediaElement.style.width = '100%';
+        mediaElement.style.height = 'auto';
+        mediaElement.onloadeddata = () => {
+          imgBox.appendChild(mediaElement);
+          imgBox.innerHTML += '<div class="dots">•••</div>';
+          appendToColumn(imgBox);
+        };
+        mediaElement.onerror = () => {
+          console.error('Failed to load video.');
+        };
+      }
+    }
+
+    function appendToColumn(imgBox) {
+      if (imageCount % 2 === 0) {
+        leftColumn.appendChild(imgBox);
+      } else {
+        rightColumn.appendChild(imgBox);
+      }
+      imageCount++;
+    }
+
+    closePreview.addEventListener('click', () => {
+      imagePreview.style.visibility = 'hidden';
+      imagePreview.style.opacity = '0';
+      previewVideo.pause();
+      previewVideo.currentTime = 0;
+    });
+
+    function adjustCloseIconColor(src) {
+      const img = new Image();
+      img.src = src;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        let r = 0, g = 0, b = 0;
+        const length = data.length / 4;
+
+        for (let i = 0; i < length; i++) {
+          r += data[i * 4];
+          g += data[i * 4 + 1];
+          b += data[i * 4 + 2];
+        }
+
+        r = Math.floor(r / length);
+        g = Math.floor(g / length);
+        b = Math.floor(b / length);
+
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        closePreview.style.color = brightness < 128 ? 'white' : 'black';
+      };
     }
 
     function filter(type) {
-      currentFolder = type;
-      displayImages();
+      currentFilter = type;
+      leftColumn.innerHTML = '';
+      rightColumn.innerHTML = '';
+      imageCount = 0;
+
+      const allMedia = Array.from(fileInput.files);
+
+      allMedia.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const imgBox = document.createElement('div');
+          imgBox.className = 'box';
+          let mediaElement;
+
+          if (file.type.startsWith('image/')) {
+            mediaElement = `<img src="${e.target.result}" alt="">`;
+          } else if (file.type.startsWith('video/')) {
+            mediaElement = `<video src="${e.target.result}"></video>`;
+          }
+
+          imgBox.innerHTML = `
+            ${mediaElement}
+            <div class="dots">•••</div>
+          `;
+
+          const mediaElementNode = imgBox.querySelector('img, video');
+          mediaElementNode.addEventListener('click', () => {
+            if (file.type.startsWith('image/')) {
+              previewImage.src = e.target.result;
+              previewVideo.style.display = 'none';
+              previewImage.style.display = 'block';
+              adjustCloseIconColor(previewImage.src);
+            } else {
+              previewVideo.src = e.target.result;
+              previewImage.style.display = 'none';
+              previewVideo.style.display = 'block';
+              previewVideo.play();
+              adjustCloseIconColor(previewVideo.src);
+            }
+            imagePreview.style.visibility = 'visible';
+            imagePreview.style.opacity = '1';
+          });
+
+          if (currentFilter === 'all' || (currentFilter === 'photos' && file.type.startsWith('image/')) || (currentFilter === 'videos' && file.type.startsWith('video/'))) {
+            appendToColumn(imgBox);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
     }
 
     function upload() {
-      document.getElementById('file-input').click();
+      fileInput.click();
     }
 
-    function handleFiles(event) {
-      const files = event.target.files;
-      for (let file of files) {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-          const media = {
-            type: file.type.startsWith('image') ? 'image' : 'video',
-            src: e.target.result,
-            dots: '•••',
-            folder: currentFolder
-          };
-          images.push(media);
-          if (currentFolder !== 'all') {
-            folders[currentFolder].push(media);
-          }
-          displayImages();
-        }
-        reader.readAsDataURL(file);
-      }
+    function showLoader() {
+      loader.style.visibility = 'visible';
     }
 
-    function displayImages() {
-      const leftColumn = document.getElementById('left-column');
-      const rightColumn = document.getElementById('right-column');
-      leftColumn.innerHTML = '';
-      rightColumn.innerHTML = '';
-      let leftHeight = 0;
-      let rightHeight = 0;
-
-      const filteredImages = currentFolder === 'all' ? images : folders[currentFolder];
-      for (let media of filteredImages) {
-        const mediaElement = document.createElement(media.type);
-        mediaElement.src = media.src;
-        mediaElement.className = 'box';
-        mediaElement.setAttribute('data-dots', media.dots);
-        mediaElement.onclick = () => openPreview(media.src, media.type);
-
-        const mediaContainer = document.createElement('div');
-        mediaContainer.className = 'box';
-        mediaContainer.appendChild(mediaElement);
-
-        if (media.type === 'image') {
-          const dots = document.createElement('div');
-          dots.className = 'dots';
-          dots.textContent = media.dots;
-          mediaContainer.appendChild(dots);
-        }
-
-        if (leftHeight <= rightHeight) {
-          leftColumn.appendChild(mediaContainer);
-          leftHeight += mediaElement.height || 200;
-        } else {
-          rightColumn.appendChild(mediaContainer);
-          rightHeight += mediaElement.height || 200;
-        }
-      }
-    }
-
-    function openPreview(src, type) {
-      const preview = document.getElementById('preview');
-      const previewContent = document.getElementById('preview-content');
-      previewContent.innerHTML = '';
-
-      const mediaElement = document.createElement(type);
-      mediaElement.src = src;
-      mediaElement.controls = true;
-      previewContent.appendChild(mediaElement);
-
-      preview.style.visibility = 'visible';
-      preview.style.opacity = '1';
-    }
-
-    document.getElementById('preview-close').onclick = function () {
-      const preview = document.getElementById('preview');
-      preview.style.visibility = 'hidden';
-      preview.style.opacity = '0';
+    function hideLoader() {
+      loader.style.visibility = 'hidden';
     }
   </script>
+
 </body>
 
 </html>
