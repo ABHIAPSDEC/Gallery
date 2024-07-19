@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grid Gallery with Offline Caching</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    body {
+      font-family: "Lato", sans-serif;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      height: 100vh;
+      background-color: #f4f4f9;
+    }
+
+    .navbar {
+      display: flex;
+      align-items: center;
+      background: white;
+      padding: 10px;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      z-index: 1000;
+      overflow-x: auto;
+      white-space: nowrap;
+      color: black;
+    }
+
+    .navbar .menu-toggle {
+      cursor: pointer;
+      margin-top: 10px;
+      font-size: 25px;
+      color: black;
+      flex-shrink: 0;
+    }
+
+    .navbar .nav-links {
+      display: flex;
+      justify-content: space-between;
+      margin-left: 10px;
+    }
+
+    .navbar .nav-links a {
+      color: black;
+      font-size: 18px;
+      text-decoration: none;
+      padding: 10px;
+      margin-top: 10px;
+      transition: color 0.3s, border-bottom 0.3s;
+      display: inline-block;
+    }
+
+    .navbar .nav-links a:hover {
+      color: #333;
+    }
+
+    .sidenav {
+      height: 100%;
+      width: 250px;
+      position: fixed;
+      z-index: 1;
+      top: 0;
+      left: -250px;
+      background-color: #111;
+      transition: 0.5s;
+      padding-top: 60px;
+    }
+
+    .sidenav .closebtn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      font-size: 24px;
+      color: white;
+      cursor: pointer;
+      transition: color 0.3s;
+    }
+
+    .sidenav .closebtn:hover {
+      color: #ffdddd;
+    }
+
+    .sidenav .upload-button {
+      display: block;
+      margin: 20px auto;
+      padding: 15px;
+      font-size: 16px;
+      border: none;
+      background-color: transparent;
+      color: white;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    .sidenav .upload-button:hover {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .sidenav a {
+      padding: 8px 8px 8px 32px;
+      text-decoration: none;
+      font-size: 16px;
+      color: #818181;
+      display: block;
+      transition: 0.3s;
+      margin-top: 10px;
+    }
+
+    .sidenav a:hover {
+      color: #f1f1f1;
+    }
+
+    .grid-container {
+      display: flex;
+      margin-top: 80px;
+      height: calc(100% - 60px);
+      overflow-y: auto;
+      background-color: white;
+    }
+
+    .grid {
+      display: flex;
+      width: 100%;
+      flex-direction: row;
+      margin-top: 20px;
+    }
+
+    .column {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 5px;
+      background-color: white;
+      border-radius: 10px;
+    }
+
+    .box {
+      margin-bottom: 10px;
+    }
+
+    .box img {
+      border-radius: 20px;
+      width: 100%;
+      height: auto;
+      object-fit: cover;
+    }
+
+    .box video {
+      border-radius: 20px;
+      width: 100%;
+      height: auto;
+      object-fit: cover;
+    }
+
+    .dots {
+      text-align: right;
+      margin-top: 5px;
+      font-size: 10px;
+      color: white;
+      font-weight: bold;
+    }
+
+    .preview {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .preview-content {
+      position: relative;
+      max-width: 90%;
+      max-height: 90%;
+    }
+
+    .preview img,
+    .preview video {
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: 10px;
+    }
+
+    .close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 30px;
+      color: white;
+      cursor: pointer;
+      transition: color 0.3s;
+    }
+
+    .close:hover {
+      color: #ffdddd;
+    }
+
+    @media (max-width: 360px) {
+      .column {
+        flex: 1 1 100%;
+      }
+    }
+
+    .loader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      visibility: hidden;
+    }
+
+    .loader div {
+      border: 4px solid #f3f3f3;
+      border-radius: 50%;
+      border-top: 4px solid #3498db;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="navbar">
+    <span class="menu-toggle" onclick="openNav()">&#9776;</span>
+    <div class="nav-links">
+      <a href="#" onclick="filter('all')">All</a>
+      <a href="#" onclick="filter('photos')">Photos</a>
+      <a href="#" onclick="filter('videos')">Videos</a>
+      <a href="#" onclick="upload()">Upload</a>
+    </div>
+  </div>
+
+  <div id="mySidenav" class="sidenav">
+    <span class="closebtn" onclick="closeNav()">&times;</span>
+    <button class="upload-button" id="upload-button">
+      <i class="fa-solid fa-upload"></i>
+    </button>
+    <a href="#">About</a>
+    <a href="#">Services</a>
+    <a href="#">Clients</a>
+    <a href="#">Contact</a>
+  </div>
+
+  <input type="file" id="file-input" multiple style="display: none;" accept="image/*,video/*">
+
+  <div class="grid-container">
+    <div class="grid" id="image-group">
+      <div class="column" id="left-column"></div>
+      <div class="column" id="right-column"></div>
+    </div>
+  </div>
+
+  <div class="preview" id="image-preview">
+    <div class="preview-content">
+      <img id="preview-image" alt="Preview" style="display: none;">
+      <video id="preview-video" controls style="display: none;"></video>
+      <span class="close" id="close-preview">&times;</span>
+    </div>
+  </div>
+
+  <div class="loader" id="loader">
+    <div></div>
+  </div>
+
+  <script>
+    let imageCount = 0;
+    let currentFilter = 'all';
+
+    const DB_NAME = 'galleryDB';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'media';
+
+    let db;
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onerror = (event) => {
+          console.error('IndexedDB error:', event.target.errorCode);
+          reject(event.target.errorCode);
+        };
+
+        request.onsuccess = (event) => {
+          db = event.target.result;
+          console.log('IndexedDB opened successfully');
+          resolve();
+        };
+
+        request.onupgradeneeded = (event) => {
+          const db = event.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME, { autoIncrement: true });
+          }
+        };
+      });
+    }
+
+    async function saveToDB(file, dataUrl) {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+
+      const entry = {
+        type: file.type,
+        dataUrl: dataUrl,
+        timestamp: new Date().getTime()
+      };
+
+      const request = store.add(entry);
+
+      request.onerror = (event) => {
+        console.error('Error saving file to IndexedDB:', event.target.error);
+      };
+
+      tx.oncomplete = () => {
+        console.log('File saved to IndexedDB:', file.name);
+      };
+    }
+
+    async function readFromDB() {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const request = store.getAll();
+
+        request.onerror = (event) => {
+          console.error('Error reading files from IndexedDB:', event.target.error);
+          reject(event.target.error);
+        };
+
+        request.onsuccess = (event) => {
+          const files = event.target.result;
+          console.log('Files retrieved from IndexedDB:', files);
+          resolve(files);
+        };
+      });
+    }
+
+    async function processFiles(files) {
+      for (const file of files) {
+        try {
+          await uploadFileInChunks(file);
+          const dataUrl = await getDataUrl(file);
+          saveToDB(file, dataUrl);
+        } catch (error) {
+          console.error(`Error processing file ${file.name}:`, error);
+        }
+      }
+    }
+
+    async function uploadFileInChunks(file) {
+      const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB
+      for (let start = 0; start < file.size; start += CHUNK_SIZE) {
+        const chunk = file.slice(start, start + CHUNK_SIZE);
+        await readChunk(chunk, file);
+      }
+    }
+
+    function readChunk(chunk, file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          if (file.size <= chunk.size) {
+            addMediaToGallery(file, e.target.result);
+          }
+          resolve();
+        };
+        reader.onerror = () => {
+          console.error('Error reading chunk:', reader.error);
+          reject(reader.error);
+        };
+        reader.readAsDataURL(chunk);
+      });
+    }
+
+    async function getDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          resolve(e.target.result);
+        };
+        reader.onerror = (e) => {
+          reject(e.target.error);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function addMediaToGallery(file, dataUrl) {
+      const imgBox = document.createElement('div');
+      imgBox.className = 'box';
+
+      let mediaElement;
+
+      if (file.type.startsWith('image/')) {
+        mediaElement = new Image();
+        mediaElement.src = dataUrl;
+        mediaElement.onload = () => {
+          imgBox.appendChild(mediaElement);
+          imgBox.innerHTML += '<div class="dots">•••</div>';
+          appendToColumn(imgBox);
+        };
+        mediaElement.onerror = () => {
+          console.error('Failed to load image.');
+        };
+      } else if (file.type.startsWith('video/')) {
+        mediaElement = document.createElement('video');
+        mediaElement.src = dataUrl;
+        mediaElement.controls = true;
+        mediaElement.style.display = 'block';
+        mediaElement.style.width = '100%';
+        mediaElement.style.height = 'auto';
+        mediaElement.onloadeddata = () => {
+          imgBox.appendChild(mediaElement);
+          imgBox.innerHTML += '<div class="dots">•••</div>';
+          appendToColumn(imgBox);
+        };
+        mediaElement.onerror = () => {
+          console.error('Failed to load video.');
+        };
+      }
+    }
+
+    function appendToColumn(imgBox) {
+      const leftColumn = document.getElementById('left-column');
+      const rightColumn = document.getElementById('right-column');
+      if (imageCount % 2 === 0) {
+        leftColumn.appendChild(imgBox);
+      } else {
+        rightColumn.appendChild(imgBox);
+      }
+      imageCount++;
+    }
+
+    async function loadFromIndexedDB() {
+      try {
+        await openDB();
+        const files = await readFromDB();
+        files.forEach(file => {
+          const dataUrl = file.dataUrl;
+          addMediaToGallery({ type: file.type }, dataUrl);
+        });
+      } catch (error) {
+        console.error('Error loading files from IndexedDB:', error);
+      }
+    }
+
+    function closeNav() {
+      document.getElementById("mySidenav").style.left = "-250px";
+    }
+
+    function openNav() {
+      document.getElementById("mySidenav").style.left = "0";
+    }
+
+    function upload() {
+      document.getElementById('file-input').click();
+    }
+
+    document.getElementById('file-input').addEventListener('change', async (event) => {
+      const files = Array.from(event.target.files);
+      showLoader();
+      try {
+        await processFiles(files);
+      } catch (error) {
+        console.error('Error during file upload:', error);
+      } finally {
+        hideLoader();
+      }
+    });
+
+    function showLoader() {
+      document.getElementById('loader').style.visibility = 'visible';
+    }
+
+    function hideLoader() {
+      document.getElementById('loader').style.visibility = 'hidden';
+    }
+
+    function filter(type) {
+      currentFilter = type;
+      const imageGroup = document.getElementById('image-group');
+      imageGroup.innerHTML = '';
+      imageCount = 0;
+
+      const allMedia = Array.from(document.getElementById('file-input').files);
+
+      allMedia.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const imgBox = document.createElement('div');
+          imgBox.className = 'box';
+          let mediaElement;
+
+          if (file.type.startsWith('image/')) {
+            mediaElement = `<img src="${e.target.result}" alt="">`;
+          } else if (file.type.startsWith('video/')) {
+            mediaElement = `<video src="${e.target.result}"></video>`;
+          }
+
+          imgBox.innerHTML = `
+            ${mediaElement}
+            <div class="dots">•••</div>
+          `;
+
+          const mediaElementNode = imgBox.querySelector('img, video');
+          mediaElementNode.addEventListener('click', () => {
+            if (file.type.startsWith('image/')) {
+              document.getElementById('preview-image').src = e.target.result;
+              document.getElementById('preview-video').style.display = 'none';
+              document.getElementById('preview-image').style.display = 'block';
+            } else {
+              document.getElementById('preview-video').src = e.target.result;
+              document.getElementById('preview-image').style.display = 'none';
+              document.getElementById('preview-video').style.display = 'block';
+              document.getElementById('preview-video').play();
+            }
+            document.getElementById('image-preview').style.visibility = 'visible';
+            document.getElementById('image-preview').style.opacity = '1';
+          });
+
+          if (currentFilter === 'all' || (currentFilter === 'photos' && file.type.startsWith('image/')) || (currentFilter === 'videos' && file.type.startsWith('video/'))) {
+            appendToColumn(imgBox);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    document.getElementById('close-preview').addEventListener('click', () => {
+      const imagePreview = document.getElementById('image-preview');
+      imagePreview.style.visibility = 'hidden';
+      imagePreview.style.opacity = '0';
+      document.getElementById('preview-video').pause();
+      document.getElementById('preview-video').currentTime = 0;
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadFromIndexedDB();
+    });
+  </script>
+
+</body>
+
+</html>
