@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Grid Gallery with Offline Caching</title>
+  <title>Grid Gallery with Sliding Navbar</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <style>
     body {
@@ -296,84 +296,49 @@
     let imageCount = 0;
     let currentFilter = 'all';
 
-    const DB_NAME = 'galleryDB';
-    const DB_VERSION = 1;
-    const STORE_NAME = 'media';
-
-    let db;
-
-    function openDB() {
-      return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-        request.onerror = (event) => {
-          console.error('IndexedDB error:', event.target.errorCode);
-          reject(event.target.errorCode);
-        };
-
-        request.onsuccess = (event) => {
-          db = event.target.result;
-          console.log('IndexedDB opened successfully');
-          resolve();
-        };
-
-        request.onupgradeneeded = (event) => {
-          const db = event.target.result;
-          if (!db.objectStoreNames.contains(STORE_NAME)) {
-            db.createObjectStore(STORE_NAME, { autoIncrement: true });
-          }
-        };
-      });
+    function openNav() {
+      document.getElementById("mySidenav").style.left = "0";
+      document.querySelector(".navbar").style.zIndex = "-1";
     }
 
-    async function saveToDB(file, dataUrl) {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-
-      const entry = {
-        type: file.type,
-        dataUrl: dataUrl,
-        timestamp: new Date().getTime()
-      };
-
-      const request = store.add(entry);
-
-      request.onerror = (event) => {
-        console.error('Error saving file to IndexedDB:', event.target.error);
-      };
-
-      tx.oncomplete = () => {
-        console.log('File saved to IndexedDB:', file.name);
-      };
+    function closeNav() {
+      document.getElementById("mySidenav").style.left = "-250px";
+      document.querySelector(".navbar").style.zIndex = "1000";
     }
 
-    async function readFromDB() {
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readonly');
-        const store = tx.objectStore(STORE_NAME);
-        const request = store.getAll();
+    const uploadButton = document.getElementById('upload-button');
+    const fileInput = document.getElementById('file-input');
+    const leftColumn = document.getElementById('left-column');
+    const rightColumn = document.getElementById('right-column');
+    const imagePreview = document.getElementById('image-preview');
+    const previewImage = document.getElementById('preview-image');
+    const previewVideo = document.getElementById('preview-video');
+    const closePreview = document.getElementById('close-preview');
+    const loader = document.getElementById('loader');
 
-        request.onerror = (event) => {
-          console.error('Error reading files from IndexedDB:', event.target.error);
-          reject(event.target.error);
-        };
+    uploadButton.addEventListener('click', () => {
+      fileInput.click();
+    });
 
-        request.onsuccess = (event) => {
-          const files = event.target.result;
-          console.log('Files retrieved from IndexedDB:', files);
-          resolve(files);
-        };
-      });
-    }
+    fileInput.addEventListener('change', async (event) => {
+      const files = Array.from(event.target.files);
+      showLoader();
+      try {
+        await processFiles(files);
+        filter('all');
+      } catch (error) {
+        console.error('Error during file upload:', error);
+      } finally {
+        hideLoader();
+      }
+    });
 
     async function processFiles(files) {
       for (const file of files) {
         try {
           await uploadFileInChunks(file);
-          const dataUrl = await getDataUrl(file);
-          saveToDB(file, dataUrl);
         } catch (error) {
-          console.error(`Error processing file ${file.name}:`, error);
+          console.error(`Error uploading file ${file.name}:`, error);
         }
       }
     }
@@ -400,19 +365,6 @@
           reject(reader.error);
         };
         reader.readAsDataURL(chunk);
-      });
-    }
-
-    async function getDataUrl(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          resolve(e.target.result);
-        };
-        reader.onerror = (e) => {
-          reject(e.target.error);
-        };
-        reader.readAsDataURL(file);
       });
     }
 
@@ -452,8 +404,6 @@
     }
 
     function appendToColumn(imgBox) {
-      const leftColumn = document.getElementById('left-column');
-      const rightColumn = document.getElementById('right-column');
       if (imageCount % 2 === 0) {
         leftColumn.appendChild(imgBox);
       } else {
@@ -462,58 +412,50 @@
       imageCount++;
     }
 
-    async function loadFromIndexedDB() {
-      try {
-        await openDB();
-        const files = await readFromDB();
-        files.forEach(file => {
-          const dataUrl = file.dataUrl;
-          addMediaToGallery({ type: file.type }, dataUrl);
-        });
-      } catch (error) {
-        console.error('Error loading files from IndexedDB:', error);
-      }
-    }
-
-    function closeNav() {
-      document.getElementById("mySidenav").style.left = "-250px";
-    }
-
-    function openNav() {
-      document.getElementById("mySidenav").style.left = "0";
-    }
-
-    function upload() {
-      document.getElementById('file-input').click();
-    }
-
-    document.getElementById('file-input').addEventListener('change', async (event) => {
-      const files = Array.from(event.target.files);
-      showLoader();
-      try {
-        await processFiles(files);
-      } catch (error) {
-        console.error('Error during file upload:', error);
-      } finally {
-        hideLoader();
-      }
+    closePreview.addEventListener('click', () => {
+      imagePreview.style.visibility = 'hidden';
+      imagePreview.style.opacity = '0';
+      previewVideo.pause();
+      previewVideo.currentTime = 0;
     });
 
-    function showLoader() {
-      document.getElementById('loader').style.visibility = 'visible';
-    }
+    function adjustCloseIconColor(src) {
+      const img = new Image();
+      img.src = src;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
 
-    function hideLoader() {
-      document.getElementById('loader').style.visibility = 'hidden';
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        let r = 0, g = 0, b = 0;
+        const length = data.length / 4;
+
+        for (let i = 0; i < length; i++) {
+          r += data[i * 4];
+          g += data[i * 4 + 1];
+          b += data[i * 4 + 2];
+        }
+
+        r = Math.floor(r / length);
+        g = Math.floor(g / length);
+        b = Math.floor(b / length);
+
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        closePreview.style.color = brightness < 128 ? 'white' : 'black';
+      };
     }
 
     function filter(type) {
       currentFilter = type;
-      const imageGroup = document.getElementById('image-group');
-      imageGroup.innerHTML = '';
+      leftColumn.innerHTML = '';
+      rightColumn.innerHTML = '';
       imageCount = 0;
 
-      const allMedia = Array.from(document.getElementById('file-input').files);
+      const allMedia = Array.from(fileInput.files);
 
       allMedia.forEach(file => {
         const reader = new FileReader();
@@ -536,17 +478,19 @@
           const mediaElementNode = imgBox.querySelector('img, video');
           mediaElementNode.addEventListener('click', () => {
             if (file.type.startsWith('image/')) {
-              document.getElementById('preview-image').src = e.target.result;
-              document.getElementById('preview-video').style.display = 'none';
-              document.getElementById('preview-image').style.display = 'block';
+              previewImage.src = e.target.result;
+              previewVideo.style.display = 'none';
+              previewImage.style.display = 'block';
+              adjustCloseIconColor(previewImage.src);
             } else {
-              document.getElementById('preview-video').src = e.target.result;
-              document.getElementById('preview-image').style.display = 'none';
-              document.getElementById('preview-video').style.display = 'block';
-              document.getElementById('preview-video').play();
+              previewVideo.src = e.target.result;
+              previewImage.style.display = 'none';
+              previewVideo.style.display = 'block';
+              previewVideo.play();
+              adjustCloseIconColor(previewVideo.src);
             }
-            document.getElementById('image-preview').style.visibility = 'visible';
-            document.getElementById('image-preview').style.opacity = '1';
+            imagePreview.style.visibility = 'visible';
+            imagePreview.style.opacity = '1';
           });
 
           if (currentFilter === 'all' || (currentFilter === 'photos' && file.type.startsWith('image/')) || (currentFilter === 'videos' && file.type.startsWith('video/'))) {
@@ -557,17 +501,17 @@
       });
     }
 
-    document.getElementById('close-preview').addEventListener('click', () => {
-      const imagePreview = document.getElementById('image-preview');
-      imagePreview.style.visibility = 'hidden';
-      imagePreview.style.opacity = '0';
-      document.getElementById('preview-video').pause();
-      document.getElementById('preview-video').currentTime = 0;
-    });
+    function upload() {
+      fileInput.click();
+    }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      loadFromIndexedDB();
-    });
+    function showLoader() {
+      loader.style.visibility = 'visible';
+    }
+
+    function hideLoader() {
+      loader.style.visibility = 'hidden';
+    }
   </script>
 
 </body>
