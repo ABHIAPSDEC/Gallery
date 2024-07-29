@@ -57,6 +57,11 @@
 
     .navbar .nav-links a:hover {
       color: #333;
+      border-bottom:2px solid #1d1d1d;
+    }
+
+    .navbar .nav-links a:active{
+      border-bottom:2px solid #1d1d1d ;
     }
 
     .sidenav {
@@ -97,9 +102,10 @@
       transition: background-color 0.3s;
     }
 
-    .sidenav .upload-button:hover {
-      background-color: rgba(255, 255, 255, 0.2);
+    .sidenav .upload-button img{
+      height: 40px;
     }
+
 
     .sidenav a {
       padding: 8px 8px 8px 32px;
@@ -114,6 +120,48 @@
     .sidenav a:hover {
       color: #f1f1f1;
     }
+
+    .preview-content .preview-nav {
+      display: flex;
+      align-items: center;
+      background: white;
+      padding: 5px;
+      position: fixed;
+      top: 762px;
+      left: 0;
+      width: 97%;
+      z-index: 1000;
+      overflow-x: auto;
+      white-space: nowrap;
+      color: black;
+      border-radius: 50px;
+    }
+
+
+    .preview-content .preview-nav a {
+      size: 1px;
+      margin: 10px;
+      color: black;
+      font-size: 10px;
+      text-decoration: none;
+      margin-top: 8px;
+      justify-content: space-between;
+      transition: color 0.3s, border-bottom 0.3s;
+      display: inline-block;
+    }
+    .preview-content .preview-nav a img{
+      height: 30px;
+      margin-left: 41px;
+      margin-top: 1px;
+    }
+
+    .preview-content .preview-nav a .I{
+    margin-left: 64px;
+    }
+    .preview-content .preview-nav a .II{
+    margin-left: 64px;
+    }
+
 
     .grid-container {
       display: flex;
@@ -160,18 +208,20 @@
     .dots {
       text-align: right;
       margin-top: 5px;
-      font-size: 10px;
-      color: white;
+      font-size: 18px;
+      color: rgb(255, 255, 255);
       font-weight: bold;
+    
     }
 
     .preview {
+      z-index: 1000;
       position: fixed;
       top: 0;
       left: 0;
       right: 0;
       bottom: 0;
-      background-color: rgba(0, 0, 0, 0.8);
+      background-color: rgb(255, 255, 255);
       display: flex;
       justify-content: center;
       align-items: center;
@@ -195,10 +245,10 @@
 
     .close {
       position: absolute;
-      top: 10px;
+      top: 4px;
       right: 10px;
-      font-size: 30px;
-      color: white;
+      font-weight: bold;
+      font-size: 44px;
       cursor: pointer;
       transition: color 0.3s;
     }
@@ -253,17 +303,16 @@
   <div class="navbar">
     <span class="menu-toggle" onclick="openNav()">&#9776;</span>
     <div class="nav-links">
-      <a href="#" onclick="filter('all')">All</a>
+      <a href="#" onclick="filter('all')" >All</a>
       <a href="#" onclick="filter('photos')">Photos</a>
       <a href="#" onclick="filter('videos')">Videos</a>
-      <a href="#" onclick="upload()">Upload</a>
     </div>
   </div>
 
   <div id="mySidenav" class="sidenav">
     <span class="closebtn" onclick="closeNav()">&times;</span>
     <button class="upload-button" id="upload-button">
-      <i class="fa-solid fa-upload"></i>
+      <img src="Upload.svg" alt="Upload">
     </button>
     <a href="#">About</a>
     <a href="#">Services</a>
@@ -271,7 +320,7 @@
     <a href="#">Contact</a>
   </div>
 
-  <input type="file" id="file-input" multiple style="display: none;" accept="image/*,video/*">
+  <input type="file" id="file-input" multiple webkitdirectory style="display: none;" accept="image/*,video/*">
 
   <div class="grid-container">
     <div class="grid" id="image-group">
@@ -281,10 +330,16 @@
   </div>
 
   <div class="preview" id="image-preview">
+    <span class="close" id="close-preview">&times;</span>
     <div class="preview-content">
       <img id="preview-image" alt="Preview" style="display: none;">
       <video id="preview-video" controls style="display: none;"></video>
-      <span class="close" id="close-preview">&times;</span>
+      
+      <div class="preview-nav">
+        <a href="#"><img src="Share.svg" alt="Share"></a>
+        <a href="#" ><img src="Edit.svg" alt="Edit"class="I"></a>
+        <a href="#" ><img src="Info.svg" alt="Info"class="II"></a>
+      </div>
     </div>
   </div>
 
@@ -445,7 +500,7 @@
         b = Math.floor(b / length);
 
         const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-        closePreview.style.color = brightness < 128 ? 'white' : 'black';
+        closePreview.style.color = brightness < 128 ? '#6D6D71' : '#6D6D71';
       };
     }
 
