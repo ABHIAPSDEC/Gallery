@@ -348,226 +348,281 @@
   </div>
 
   <script>
-    let imageCount = 0;
-    let currentFilter = 'all';
+  let imageCount = 0;
+  let currentFilter = 'all';
+  let allMedia = [];
+  let currentMediaIndex = 0;
 
-    function openNav() {
-      document.getElementById("mySidenav").style.left = "0";
-      document.querySelector(".navbar").style.zIndex = "-1";
+  function openNav() {
+    document.getElementById("mySidenav").style.left = "0";
+    document.querySelector(".navbar").style.zIndex = "-1";
+  }
+
+  function closeNav() {
+    document.getElementById("mySidenav").style.left = "-250px";
+    document.querySelector(".navbar").style.zIndex = "1000";
+  }
+
+  const uploadButton = document.getElementById('upload-button');
+  const fileInput = document.getElementById('file-input');
+  const leftColumn = document.getElementById('left-column');
+  const rightColumn = document.getElementById('right-column');
+  const imagePreview = document.getElementById('image-preview');
+  const previewImage = document.getElementById('preview-image');
+  const previewVideo = document.getElementById('preview-video');
+  const closePreview = document.getElementById('close-preview');
+  const loader = document.getElementById('loader');
+
+  uploadButton.addEventListener('click', () => {
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', async (event) => {
+    allMedia = Array.from(event.target.files);
+    showLoader();
+    try {
+      await processFiles(allMedia);
+      filter('all');
+    } catch (error) {
+      console.error('Error during file upload:', error);
+    } finally {
+      hideLoader();
     }
+  });
 
-    function closeNav() {
-      document.getElementById("mySidenav").style.left = "-250px";
-      document.querySelector(".navbar").style.zIndex = "1000";
-    }
-
-    const uploadButton = document.getElementById('upload-button');
-    const fileInput = document.getElementById('file-input');
-    const leftColumn = document.getElementById('left-column');
-    const rightColumn = document.getElementById('right-column');
-    const imagePreview = document.getElementById('image-preview');
-    const previewImage = document.getElementById('preview-image');
-    const previewVideo = document.getElementById('preview-video');
-    const closePreview = document.getElementById('close-preview');
-    const loader = document.getElementById('loader');
-
-    uploadButton.addEventListener('click', () => {
-      fileInput.click();
-    });
-
-    fileInput.addEventListener('change', async (event) => {
-      const files = Array.from(event.target.files);
-      showLoader();
+  async function processFiles(files) {
+    for (const file of files) {
       try {
-        await processFiles(files);
-        filter('all');
+        await uploadFileInChunks(file);
       } catch (error) {
-        console.error('Error during file upload:', error);
-      } finally {
-        hideLoader();
+        console.error(`Error uploading file ${file.name}:`, error);
       }
-    });
+    }
+  }
 
-    async function processFiles(files) {
-      for (const file of files) {
-        try {
-          await uploadFileInChunks(file);
-        } catch (error) {
-          console.error(`Error uploading file ${file.name}:`, error);
+  async function uploadFileInChunks(file) {
+    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB
+    for (let start = 0; start < file.size; start += CHUNK_SIZE) {
+      const chunk = file.slice(start, start + CHUNK_SIZE);
+      await readChunk(chunk, file);
+    }
+  }
+
+  function readChunk(chunk, file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (file.size <= chunk.size) {
+          addMediaToGallery(file, e.target.result);
         }
-      }
-    }
-
-    async function uploadFileInChunks(file) {
-      const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB
-      for (let start = 0; start < file.size; start += CHUNK_SIZE) {
-        const chunk = file.slice(start, start + CHUNK_SIZE);
-        await readChunk(chunk, file);
-      }
-    }
-
-    function readChunk(chunk, file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          if (file.size <= chunk.size) {
-            addMediaToGallery(file, e.target.result);
-          }
-          resolve();
-        };
-        reader.onerror = () => {
-          console.error('Error reading chunk:', reader.error);
-          reject(reader.error);
-        };
-        reader.readAsDataURL(chunk);
-      });
-    }
-
-    function addMediaToGallery(file, dataUrl) {
-      const imgBox = document.createElement('div');
-      imgBox.className = 'box';
-
-      let mediaElement;
-
-      if (file.type.startsWith('image/')) {
-        mediaElement = new Image();
-        mediaElement.src = dataUrl;
-        mediaElement.onload = () => {
-          imgBox.appendChild(mediaElement);
-          imgBox.innerHTML += '<div class="dots">•••</div>';
-          appendToColumn(imgBox);
-        };
-        mediaElement.onerror = () => {
-          console.error('Failed to load image.');
-        };
-      } else if (file.type.startsWith('video/')) {
-        mediaElement = document.createElement('video');
-        mediaElement.src = dataUrl;
-        mediaElement.controls = true;
-        mediaElement.style.display = 'block';
-        mediaElement.style.width = '100%';
-        mediaElement.style.height = 'auto';
-        mediaElement.onloadeddata = () => {
-          imgBox.appendChild(mediaElement);
-          imgBox.innerHTML += '<div class="dots">•••</div>';
-          appendToColumn(imgBox);
-        };
-        mediaElement.onerror = () => {
-          console.error('Failed to load video.');
-        };
-      }
-    }
-
-    function appendToColumn(imgBox) {
-      if (imageCount % 2 === 0) {
-        leftColumn.appendChild(imgBox);
-      } else {
-        rightColumn.appendChild(imgBox);
-      }
-      imageCount++;
-    }
-
-    closePreview.addEventListener('click', () => {
-      imagePreview.style.visibility = 'hidden';
-      imagePreview.style.opacity = '0';
-      previewVideo.pause();
-      previewVideo.currentTime = 0;
+        resolve();
+      };
+      reader.onerror = () => {
+        console.error('Error reading chunk:', reader.error);
+        reject(reader.error);
+      };
+      reader.readAsDataURL(chunk);
     });
+  }
 
-    function adjustCloseIconColor(src) {
-      const img = new Image();
-      img.src = src;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
+  function addMediaToGallery(file, dataUrl) {
+    const imgBox = document.createElement('div');
+    imgBox.className = 'box';
 
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-        let r = 0, g = 0, b = 0;
-        const length = data.length / 4;
+    let mediaElement;
 
-        for (let i = 0; i < length; i++) {
-          r += data[i * 4];
-          g += data[i * 4 + 1];
-          b += data[i * 4 + 2];
-        }
-
-        r = Math.floor(r / length);
-        g = Math.floor(g / length);
-        b = Math.floor(b / length);
-
-        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-        closePreview.style.color = brightness < 128 ? '#6D6D71' : '#6D6D71';
+    if (file.type.startsWith('image/')) {
+      mediaElement = new Image();
+      mediaElement.src = dataUrl;
+      mediaElement.onload = () => {
+        imgBox.appendChild(mediaElement);
+        imgBox.innerHTML += '<div class="dots">•••</div>';
+        appendToColumn(imgBox);
+      };
+      mediaElement.onerror = () => {
+        console.error('Failed to load image.');
+      };
+    } else if (file.type.startsWith('video/')) {
+      mediaElement = document.createElement('video');
+      mediaElement.src = dataUrl;
+      mediaElement.controls = true;
+      mediaElement.style.display = 'block';
+      mediaElement.style.width = '100%';
+      mediaElement.style.height = 'auto';
+      mediaElement.onloadeddata = () => {
+        imgBox.appendChild(mediaElement);
+        imgBox.innerHTML += '<div class="dots">•••</div>';
+        appendToColumn(imgBox);
+      };
+      mediaElement.onerror = () => {
+        console.error('Failed to load video.');
       };
     }
 
-    function filter(type) {
-      currentFilter = type;
-      leftColumn.innerHTML = '';
-      rightColumn.innerHTML = '';
-      imageCount = 0;
+    imgBox.addEventListener('click', () => {
+      currentMediaIndex = allMedia.indexOf(file);
+      showPreview(file, dataUrl);
+    });
+  }
 
-      const allMedia = Array.from(fileInput.files);
+  function appendToColumn(imgBox) {
+    if (imageCount % 2 === 0) {
+      leftColumn.appendChild(imgBox);
+    } else {
+      rightColumn.appendChild(imgBox);
+    }
+    imageCount++;
+  }
 
-      allMedia.forEach(file => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const imgBox = document.createElement('div');
-          imgBox.className = 'box';
-          let mediaElement;
+  closePreview.addEventListener('click', () => {
+    hidePreview();
+  });
 
-          if (file.type.startsWith('image/')) {
-            mediaElement = `<img src="${e.target.result}" alt="">`;
-          } else if (file.type.startsWith('video/')) {
-            mediaElement = `<video src="${e.target.result}"></video>`;
-          }
+  function adjustCloseIconColor(src) {
+    const img = new Image();
+    img.src = src;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
 
-          imgBox.innerHTML = `
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      let r = 0, g = 0, b = 0;
+      const length = data.length / 4;
+
+      for (let i = 0; i < length; i++) {
+        r += data[i * 4];
+        g += data[i * 4 + 1];
+        b += data[i * 4 + 2];
+      }
+
+      r = Math.floor(r / length);
+      g = Math.floor(g / length);
+      b = Math.floor(b / length);
+
+      const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+      closePreview.style.color = brightness < 128 ? '#6D6D71' : '#6D6D71';
+    };
+  }
+
+  function filter(type) {
+    currentFilter = type;
+    leftColumn.innerHTML = '';
+    rightColumn.innerHTML = '';
+    imageCount = 0;
+
+    allMedia.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const imgBox = document.createElement('div');
+        imgBox.className = 'box';
+        let mediaElement;
+
+        if (file.type.startsWith('image/')) {
+          mediaElement = `<img src="${e.target.result}" alt="">`;
+        } else if (file.type.startsWith('video/')) {
+          mediaElement = `<video src="${e.target.result}"></video>`;
+        }
+
+        imgBox.innerHTML = `
             ${mediaElement}
             <div class="dots">•••</div>
           `;
 
-          const mediaElementNode = imgBox.querySelector('img, video');
-          mediaElementNode.addEventListener('click', () => {
-            if (file.type.startsWith('image/')) {
-              previewImage.src = e.target.result;
-              previewVideo.style.display = 'none';
-              previewImage.style.display = 'block';
-              adjustCloseIconColor(previewImage.src);
-            } else {
-              previewVideo.src = e.target.result;
-              previewImage.style.display = 'none';
-              previewVideo.style.display = 'block';
-              previewVideo.play();
-              adjustCloseIconColor(previewVideo.src);
-            }
-            imagePreview.style.visibility = 'visible';
-            imagePreview.style.opacity = '1';
-          });
+        const mediaElementNode = imgBox.querySelector('img, video');
+        mediaElementNode.addEventListener('click', () => {
+          currentMediaIndex = allMedia.indexOf(file);
+          showPreview(file, e.target.result);
+        });
 
-          if (currentFilter === 'all' || (currentFilter === 'photos' && file.type.startsWith('image/')) || (currentFilter === 'videos' && file.type.startsWith('video/'))) {
-            appendToColumn(imgBox);
-          }
-        };
-        reader.readAsDataURL(file);
-      });
-    }
+        if (currentFilter === 'all' || (currentFilter === 'photos' && file.type.startsWith('image/')) || (currentFilter === 'videos' && file.type.startsWith('video/'))) {
+          appendToColumn(imgBox);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  }
 
-    function upload() {
-      fileInput.click();
+  function showPreview(file, dataUrl) {
+    if (file.type.startsWith('image/')) {
+      previewImage.src = dataUrl;
+      previewVideo.style.display = 'none';
+      previewImage.style.display = 'block';
+      adjustCloseIconColor(previewImage.src);
+    } else {
+      previewVideo.src = dataUrl;
+      previewImage.style.display = 'none';
+      previewVideo.style.display = 'block';
+      previewVideo.play();
+      adjustCloseIconColor(previewVideo.src);
     }
+    imagePreview.style.visibility = 'visible';
+    imagePreview.style.opacity = '1';
+  }
 
-    function showLoader() {
-      loader.style.visibility = 'visible';
-    }
+  function hidePreview() {
+    imagePreview.style.visibility = 'hidden';
+    imagePreview.style.opacity = '0';
+    previewVideo.pause();
+    previewVideo.currentTime = 0;
+  }
 
-    function hideLoader() {
-      loader.style.visibility = 'hidden';
+  let startX;
+
+  imagePreview.addEventListener('touchstart', (e) => {
+    startX = e.touches[0].clientX;
+  });
+
+  imagePreview.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+  });
+
+  imagePreview.addEventListener('touchend', (e) => {
+    const endX = e.changedTouches[0].clientX;
+    if (endX < startX - 50) {
+      showNextMedia();
+    } else if (endX > startX + 50) {
+      showPreviousMedia();
     }
-  </script>
+  });
+
+  function showNextMedia() {
+    if (currentMediaIndex < allMedia.length - 1) {
+      currentMediaIndex++;
+      const nextFile = allMedia[currentMediaIndex];
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        showPreview(nextFile, e.target.result);
+      };
+      reader.readAsDataURL(nextFile);
+    }
+  }
+
+  function showPreviousMedia() {
+    if (currentMediaIndex > 0) {
+      currentMediaIndex--;
+      const prevFile = allMedia[currentMediaIndex];
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        showPreview(prevFile, e.target.result);
+      };
+      reader.readAsDataURL(prevFile);
+    }
+  }
+
+  function showLoader() {
+    loader.style.display = 'flex';
+  }
+
+  function hideLoader() {
+    loader.style.display = 'none';
+  }
+
+  filter('all');
+    </script>
 
 </body>
 
